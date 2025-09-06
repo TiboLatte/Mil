@@ -23,6 +23,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,10 +38,10 @@ import androidx.compose.ui.unit.sp
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
-import com.tibolatte.milbadge.Badge
 import com.tibolatte.milbadge.BadgeType
 import com.tibolatte.milbadge.ObjectiveType
 import com.tibolatte.milbadge.R
+import com.tibolatte.milbadge.components.AnimatedProgressRing
 import com.tibolatte.milbadge.components.RotatableBadge
 import com.tibolatte.milbadge.data.BadgeRepositoryRoom
 import kotlinx.coroutines.launch
@@ -53,19 +54,22 @@ fun BadgeDetailScreen(
     onClose: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    var badge by remember { mutableStateOf<Badge?>(null) }
     var showConfetti by remember { mutableStateOf(false) }
     val extraRotationY = remember { Animatable(0f) }
 
     var countInput by remember { mutableStateOf("") }
     var yesNoChecked by remember { mutableStateOf(false) }
 
-    // Charger le badge depuis Room
-    LaunchedEffect(badgeId) {
-        badge = badgeRepository.getBadges().firstOrNull { it.id == badgeId }
+    // --- Flow réactif depuis Room ---
+    val badges by badgeRepository.badgesFlow.collectAsState(initial = emptyList())
+    val badge = badges.find { it.id == badgeId } ?: return
+
+    if (badge == null) {
+        Text("Chargement…", modifier = Modifier.padding(16.dp))
+        return
     }
 
-    badge?.let { b ->
+    badge.let { b ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -76,11 +80,37 @@ fun BadgeDetailScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                RotatableBadge(
-                    badge = b,
-                    sizeFraction = 0.55f,
-                    extraRotationY = extraRotationY.value
-                )
+                val progressAnim = remember { Animatable(b.progress?.first?.toFloat() ?: 0f) }
+                var showRing by remember { mutableStateOf(!b.isUnlocked && b.type == BadgeType.PROGRESSIVE) }
+
+                LaunchedEffect(b.progress) {
+                    if (!b.isUnlocked) {
+                        val targetFraction = (b.progress?.first ?: 0) / (b.progress?.second ?: 1).toFloat()
+                        progressAnim.animateTo(
+                            targetFraction,
+                            animationSpec = tween(1200)
+                        )
+                        // On ne cache le ring que si le badge est débloqué **après** l'animation
+                        if (b.isUnlocked) {
+                            showRing = false
+                        }
+                    }
+                }
+                Box(contentAlignment = Alignment.Center) {
+                    if (showRing) {
+                        AnimatedProgressRing(
+                            badge = b,
+                            size = 180f,
+                            strokeWidth = 8f,
+                            progressFraction = progressAnim.value
+                        )
+                    }
+                    RotatableBadge(
+                        badge = b,
+                        sizeFraction = 0.55f,
+                        extraRotationY = extraRotationY.value
+                    )
+                }
 
                 if (showConfetti) {
                     LottieAnimation(
@@ -100,25 +130,19 @@ fun BadgeDetailScreen(
                     )
                 }
 
-
                 if (b.isUnlocked) {
                     Text("Débloqué le : ${b.unlockDate}", fontSize = 20.sp)
-                    b.message?.let {
-                        Text(it, fontSize = 24.sp)
-                    }
+                    b.message?.let { Text(it, fontSize = 24.sp) }
                 }
 
-                b.progress?.let { (current, total) ->
-                    if (b.type != BadgeType.UNIQUE || b.isUnlocked) {
-                        Text("Progression : $current / $total", fontSize = 20.sp)
-                    }
-                }
-                if(!b.isUnlocked){
 
-                Text(b.unlockConditionText ?: "À réaliser", fontSize = 20.sp)
+
+
+                if (!b.isUnlocked) {
+                    Text(b.unlockConditionText ?: "À réaliser", fontSize = 20.sp)
                 }
 
-                val dailyMax = when(b.objectiveType) {
+                val dailyMax = when (b.objectiveType) {
                     ObjectiveType.COUNT, ObjectiveType.DURATION -> b.totalForDay
                     ObjectiveType.YES_NO, ObjectiveType.CHECK, ObjectiveType.CUSTOM -> 1
                 }
@@ -129,7 +153,7 @@ fun BadgeDetailScreen(
                 val inputValue = badgeRepository.getInputValue(b, countInput, yesNoChecked)
 
                 if (showInputButton) {
-                    when(b.objectiveType) {
+                    when (b.objectiveType) {
                         ObjectiveType.COUNT, ObjectiveType.DURATION -> {
                             OutlinedTextField(
                                 value = countInput,
@@ -157,14 +181,11 @@ fun BadgeDetailScreen(
                                 extraRotationY.snapTo(1080f * 2)
                                 extraRotationY.animateTo(0f, tween(4500))
 
-                                when(b.type) {
+                                when (b.type) {
                                     BadgeType.UNIQUE, BadgeType.EVENT, BadgeType.SECRET -> badgeRepository.setBadgeValue(b.id, 1)
                                     BadgeType.CUMULATIVE -> badgeRepository.incrementBadge(b.id, inputValue)
                                     BadgeType.PROGRESSIVE -> badgeRepository.incrementBadgeProgress(b.id, inputValue)
                                 }
-
-                                // Recharger le badge après update
-                                badge = badgeRepository.getBadges().firstOrNull { it.id == badgeId }
 
                                 countInput = ""
                                 yesNoChecked = false

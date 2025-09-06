@@ -43,9 +43,7 @@ fun HomeScreen(navController: NavHostController, viewModel: HomeViewModel) {
     var showUnlocked by remember { mutableStateOf<Boolean?>(null) }
     var previewBadgeId by remember { mutableStateOf<Int?>(null) }
     val badges by viewModel.badges.collectAsState()
-    LaunchedEffect(Unit) {
-        viewModel.refreshBadges() // Appelle une fonction suspend pour recharger les badges
-    }
+
     // Recalcul automatique des badges progressifs au lancement
     LaunchedEffect(Unit) {
         scope.launch {

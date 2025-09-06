@@ -19,40 +19,18 @@ class HomeViewModel(
     private val repository: BadgeRepositoryRoom
 ) : AndroidViewModel(application) {
 
+    // On garde un StateFlow local pour manipuler la liste
     private val _badges = MutableStateFlow<List<Badge>>(emptyList())
     val badges: StateFlow<List<Badge>> = _badges
 
     init {
         viewModelScope.launch {
-            repository.prepopulateIfEmpty()
-            _badges.value = repository.getAllBadges()
-        }
-    }fun recalculateBadgeProgress(badge: Badge) {
-        viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            fun startOfPeriod(time: Long, unit: PeriodUnit): Long {
-                val cal = java.util.Calendar.getInstance().apply { timeInMillis = time }
-                when (unit) {
-                    PeriodUnit.DAY -> cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-                    PeriodUnit.WEEK -> cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
-                    PeriodUnit.MONTH -> cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
-                }
-                cal.set(java.util.Calendar.MINUTE, 0)
-                cal.set(java.util.Calendar.SECOND, 0)
-                cal.set(java.util.Calendar.MILLISECOND, 0)
-                return cal.timeInMillis
+            repository.badgesFlow.collect { list ->
+                _badges.value = list
             }
-
-            val currentPeriodStart = startOfPeriod(now, badge.periodUnit)
-            val lastPeriodStart = badge.lastActionDate?.let { startOfPeriod(it, badge.periodUnit) }
-
-            if (lastPeriodStart == null || currentPeriodStart > lastPeriodStart) {
-                badge.currentValue = 0
-            }
-
-            repository.updateBadge(badge)
         }
     }
+
     fun completeObjective(badgeId: Int, value: Int = 1) {
         viewModelScope.launch {
             val updatedBadges = _badges.value.map { badge ->
@@ -66,28 +44,24 @@ class HomeViewModel(
                             badge.copy(
                                 progress = current to (badge.progress?.second ?: 1),
                                 isUnlocked = isUnlocked,
-                                unlockDate = if (isUnlocked) SimpleDateFormat(
-                                    "dd/MM/yyyy",
-                                    Locale.getDefault()
-                                ).format(Date()) else badge.unlockDate,
+                                unlockDate = if (isUnlocked)
+                                    SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+                                else badge.unlockDate,
                                 lastActionDate = if (badge.type == BadgeType.PROGRESSIVE) now else badge.lastActionDate
                             )
                         }
-
                         ObjectiveType.YES_NO, ObjectiveType.CUSTOM, ObjectiveType.CHECK -> {
                             val isUnlocked = value > 0
                             badge.copy(
                                 progress = 1 to 1,
                                 isUnlocked = isUnlocked,
-                                unlockDate = if (isUnlocked) SimpleDateFormat(
-                                    "dd/MM/yyyy",
-                                    Locale.getDefault()
-                                ).format(Date()) else badge.unlockDate,
+                                unlockDate = if (isUnlocked)
+                                    SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+                                else badge.unlockDate,
                                 lastActionDate = now
                             )
                         }
                     }
-
                     repository.updateBadge(updatedBadge)
                     updatedBadge
                 } else badge
@@ -95,9 +69,31 @@ class HomeViewModel(
             _badges.value = updatedBadges
         }
     }
-    fun refreshBadges() {
+
+    fun recalculateBadgeProgress(badge: Badge) {
         viewModelScope.launch {
-            _badges.value = repository.getAllBadges()
+            val now = System.currentTimeMillis()
+
+            fun startOfPeriod(time: Long, unit: PeriodUnit): Long {
+                val cal = java.util.Calendar.getInstance().apply { timeInMillis = time }
+                when (unit) {
+                    PeriodUnit.MINUTE -> { cal.set(java.util.Calendar.SECOND, 0); cal.set(java.util.Calendar.MILLISECOND, 0) }
+                    PeriodUnit.DAY -> { cal.set(java.util.Calendar.HOUR_OF_DAY, 0); cal.set(java.util.Calendar.MINUTE, 0); cal.set(java.util.Calendar.SECOND, 0); cal.set(java.util.Calendar.MILLISECOND, 0) }
+                    PeriodUnit.WEEK -> { cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek); cal.set(java.util.Calendar.HOUR_OF_DAY, 0); cal.set(java.util.Calendar.MINUTE, 0); cal.set(java.util.Calendar.SECOND, 0); cal.set(java.util.Calendar.MILLISECOND, 0) }
+                    PeriodUnit.MONTH -> { cal.set(java.util.Calendar.DAY_OF_MONTH, 1); cal.set(java.util.Calendar.HOUR_OF_DAY, 0); cal.set(java.util.Calendar.MINUTE, 0); cal.set(java.util.Calendar.SECOND, 0); cal.set(java.util.Calendar.MILLISECOND, 0) }
+                }
+                return cal.timeInMillis
+            }
+
+            val currentPeriodStart = startOfPeriod(now, badge.periodUnit)
+            val lastPeriodStart = badge.lastActionDate?.let { startOfPeriod(it, badge.periodUnit) }
+
+            if (lastPeriodStart == null || currentPeriodStart > lastPeriodStart) {
+                badge.currentValue = 0
+            }
+
+            badge.lastActionDate = now
+            repository.updateBadge(badge)
         }
     }
 }

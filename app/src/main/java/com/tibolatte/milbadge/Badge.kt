@@ -18,7 +18,7 @@ enum class ObjectiveType {
     CUSTOM,     // action spéciale
     CHECK       // nouveau : juste valider via bouton
 }
-enum class PeriodUnit { DAY, WEEK, MONTH }
+enum class PeriodUnit { MINUTE, DAY, WEEK, MONTH }
 
 data class Badge(
     var id: Int,

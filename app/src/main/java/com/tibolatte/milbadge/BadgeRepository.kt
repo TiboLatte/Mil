@@ -86,6 +86,19 @@ object BadgeRepository {
             message = "Ca fait haut là quand même... plus jamais de vertige!",
             objectiveType = ObjectiveType.CHECK
 
+        ),
+        Badge(
+            id = 7,
+            name = "Test Minute",
+            rarity = Rarity.COMMON,
+            type = BadgeType.PROGRESSIVE,
+            isUnlocked = false,
+            unlockConditionText = "Atteindre 3 minutes consécutives",
+            progress = 0 to 3,
+            totalForDay = 1,
+            currentValue = 0,
+            objectiveType = ObjectiveType.CHECK,
+            periodUnit = PeriodUnit.MINUTE
         )
     ) + List(19) { j ->
         Badge(101 + j, "Badge ${j + 12}", Rarity.COMMON, BadgeType.UNIQUE, false)

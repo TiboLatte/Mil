@@ -17,8 +17,11 @@ import com.tibolatte.milbadge.ObjectiveType
 import com.tibolatte.milbadge.PeriodUnit
 import com.tibolatte.milbadge.toBadge
 import com.tibolatte.milbadge.toEntity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -61,7 +64,15 @@ class BadgeRepositoryRoom(private val context: Context) {
 
     private val badgeDao = db.badgeDao()
 
-    // --- Flow réactif pour l'UI ---
+    // Prépeupler directement à la création du repo
+    init {
+        CoroutineScope(Dispatchers.IO).launch {
+            if (badgeDao.getAll().isEmpty()) {
+                badgeDao.insertAll(BadgeRepository.badges.map { it.toEntity() })
+            }
+        }
+    }
+
     val badgesFlow: Flow<List<Badge>> = badgeDao.getAllFlow()
         .map { list -> list.map { it.toBadge() } }
 
@@ -70,7 +81,10 @@ class BadgeRepositoryRoom(private val context: Context) {
     suspend fun getBadges(): List<Badge> = getAllBadges()
 
     suspend fun insertBadges(badges: List<Badge>) {
-        badgeDao.insertAll(badges.map { it.toEntity() })
+        val badgesWithDate = badges.map { badge ->
+            if (badge.lastActionDate == null) badge.copy(lastActionDate = System.currentTimeMillis()) else badge
+        }
+        badgeDao.insertAll(badgesWithDate.map { it.toEntity() })
     }
 
     suspend fun updateBadge(badge: Badge) {
@@ -92,33 +106,17 @@ class BadgeRepositoryRoom(private val context: Context) {
         updateBadge(badge)
     }
     suspend fun incrementBadgeProgress(badgeId: Int, amount: Int) {
+        // Lecture du badge
         val badge = getBadges().firstOrNull { it.id == badgeId } ?: return
         val now = System.currentTimeMillis()
 
-        // Calcule le début de la période courante
         fun startOfPeriod(time: Long, unit: PeriodUnit): Long {
             val cal = java.util.Calendar.getInstance().apply { timeInMillis = time }
             when (unit) {
-                PeriodUnit.DAY -> {
-                    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-                    cal.set(java.util.Calendar.MINUTE, 0)
-                    cal.set(java.util.Calendar.SECOND, 0)
-                    cal.set(java.util.Calendar.MILLISECOND, 0)
-                }
-                PeriodUnit.WEEK -> {
-                    cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
-                    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-                    cal.set(java.util.Calendar.MINUTE, 0)
-                    cal.set(java.util.Calendar.SECOND, 0)
-                    cal.set(java.util.Calendar.MILLISECOND, 0)
-                }
-                PeriodUnit.MONTH -> {
-                    cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
-                    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-                    cal.set(java.util.Calendar.MINUTE, 0)
-                    cal.set(java.util.Calendar.SECOND, 0)
-                    cal.set(java.util.Calendar.MILLISECOND, 0)
-                }
+                PeriodUnit.DAY -> cal.apply { set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }
+                PeriodUnit.WEEK -> cal.apply { set(java.util.Calendar.DAY_OF_WEEK, firstDayOfWeek); set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }
+                PeriodUnit.MONTH -> cal.apply { set(java.util.Calendar.DAY_OF_MONTH, 1); set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }
+                PeriodUnit.MINUTE -> cal.apply { set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }
             }
             return cal.timeInMillis
         }
@@ -127,11 +125,11 @@ class BadgeRepositoryRoom(private val context: Context) {
         val lastPeriodStart = badge.lastActionDate?.let { startOfPeriod(it, badge.periodUnit) }
 
         if (lastPeriodStart == null || currentPeriodStart > lastPeriodStart) {
+            // Reset uniquement si l’objectif précédent n’était pas atteint
             if (badge.currentValue < badge.totalForDay) {
-                // on a raté l'objectif => reset de la progression
                 badge.progress = 0 to (badge.progress?.second ?: 1)
+                badge.currentValue = 0
             }
-            badge.currentValue = 0
         }
 
         // Récupère la valeur saisie selon l’objectif
@@ -140,16 +138,17 @@ class BadgeRepositoryRoom(private val context: Context) {
             ObjectiveType.YES_NO, ObjectiveType.CHECK, ObjectiveType.CUSTOM -> if (amount > 0) 1 else 0
         }
 
-        // Incrémente la valeur pour la période
+        // Incrémente currentValue pour la période
         badge.currentValue = (badge.currentValue + valueToAdd).coerceAtMost(badge.totalForDay)
 
-        // Si objectif atteint pour la période, incrémente progression globale
+        // Si objectif atteint pour la période, incrémente la progression globale
         if (badge.currentValue >= badge.totalForDay) {
             val current = (badge.progress?.first ?: 0) + 1
             val total = badge.progress?.second ?: 1
             badge.progress = current.coerceAtMost(total) to total
         }
 
+        // ⚡️ Mise à jour de la date **avant** l’update pour éviter les resets intempestifs
         badge.lastActionDate = now
 
         // Déblocage si progression complète
