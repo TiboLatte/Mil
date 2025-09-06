@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,12 +15,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,101 +37,137 @@ import androidx.compose.ui.unit.sp
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
+import com.tibolatte.milbadge.Badge
+import com.tibolatte.milbadge.BadgeType
 import com.tibolatte.milbadge.ObjectiveType
 import com.tibolatte.milbadge.R
 import com.tibolatte.milbadge.components.RotatableBadge
-import com.tibolatte.milbadge.screens.HomeViewModel
+import com.tibolatte.milbadge.data.BadgeRepositoryRoom
 import kotlinx.coroutines.launch
-import kotlin.math.pow
 
 @RequiresApi(Build.VERSION_CODES.S)
 @Composable
 fun BadgeDetailScreen(
     badgeId: Int,
-    homeViewModel: HomeViewModel,
+    badgeRepository: BadgeRepositoryRoom,
     onClose: () -> Unit
 ) {
-    val badges by homeViewModel.badges.collectAsState()
-    val badge = badges.firstOrNull { it.id == badgeId } ?: return
-    var showConfetti by remember { mutableStateOf(false) }
-
-    var countInput by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-
-    // Animatable pour rotation post-validation
+    var badge by remember { mutableStateOf<Badge?>(null) }
+    var showConfetti by remember { mutableStateOf(false) }
     val extraRotationY = remember { Animatable(0f) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+    var countInput by remember { mutableStateOf("") }
+    var yesNoChecked by remember { mutableStateOf(false) }
+
+    // Charger le badge depuis Room
+    LaunchedEffect(badgeId) {
+        badge = badgeRepository.getBadges().firstOrNull { it.id == badgeId }
+    }
+
+    badge?.let { b ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.TopCenter
         ) {
-            RotatableBadge(
-                badge = badge,
-                sizeFraction = 0.55f,
-                extraRotationY = extraRotationY.value
-            )
-            if (showConfetti) {
-                LottieAnimation(
-                    composition = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.confetti)).value,
-                    iterations = 1,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            Text(badge.name, fontSize = 28.sp)
-            Text("Rareté : ${badge.rarity.name}", fontSize = 20.sp, color = Color.Gray)
-
-            badge.progress?.let { (current, total) ->
-                Text("Progress : $current / $total", fontSize = 20.sp)
-            }
-
-            Text("Débloqué le : ${badge.unlockDate ?: "-"}", fontSize = 20.sp)
-
-            if (!badge.isUnlocked) {
-                Text(
-                    "Objectif : ${badge.unlockConditionText ?: "À réaliser"}",
-                    fontSize = 20.sp
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                RotatableBadge(
+                    badge = b,
+                    sizeFraction = 0.55f,
+                    extraRotationY = extraRotationY.value
                 )
 
-                if (badge.objectiveType == ObjectiveType.COUNT || badge.objectiveType == ObjectiveType.DURATION) {
-                    OutlinedTextField(
-                        value = countInput,
-                        onValueChange = { input -> countInput = input.filter { it.isDigit() } },
-                        label = { Text("Entrez la valeur", fontSize = 18.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(0.9f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                if (showConfetti) {
+                    LottieAnimation(
+                        composition = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.confetti)).value,
+                        iterations = 1,
+                        modifier = Modifier.fillMaxSize()
                     )
+                }
+
+                Text("Rareté : ${b.rarity.name}", fontSize = 15.sp, color = Color.Gray)
+                Text(b.name, fontSize = 28.sp)
+
+                if (b.totalForDay > 0) {
+                    Text(
+                        text = "Aujourd’hui : ${b.currentValue}/${b.totalForDay}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+
+                if (b.isUnlocked) {
+                    Text("Débloqué le : ${b.unlockDate}", fontSize = 20.sp)
+                    b.message?.let {
+                        Text(it, fontSize = 24.sp)
+                    }
+                }
+
+                b.progress?.let { (current, total) ->
+                    if (b.type != BadgeType.UNIQUE || b.isUnlocked) {
+                        Text("Progression : $current / $total", fontSize = 20.sp)
+                    }
+                }
+                if(!b.isUnlocked){
+
+                Text(b.unlockConditionText ?: "À réaliser", fontSize = 20.sp)
+                }
+
+                val dailyMax = when(b.objectiveType) {
+                    ObjectiveType.COUNT, ObjectiveType.DURATION -> b.totalForDay
+                    ObjectiveType.YES_NO, ObjectiveType.CHECK, ObjectiveType.CUSTOM -> 1
+                }
+
+                val reachedDailyMax = b.currentValue >= dailyMax
+                val reachedGlobalMax = (b.progress?.first ?: 0) >= (b.progress?.second ?: 1)
+                val showInputButton = !b.isUnlocked && !reachedDailyMax && !reachedGlobalMax
+                val inputValue = badgeRepository.getInputValue(b, countInput, yesNoChecked)
+
+                if (showInputButton) {
+                    when(b.objectiveType) {
+                        ObjectiveType.COUNT, ObjectiveType.DURATION -> {
+                            OutlinedTextField(
+                                value = countInput,
+                                onValueChange = { countInput = it.filter { c -> c.isDigit() } },
+                                label = { Text("Entrez la valeur") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth(0.9f)
+                            )
+                        }
+                        ObjectiveType.YES_NO -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = yesNoChecked, onCheckedChange = { yesNoChecked = it })
+                                Text("Action effectuée ?")
+                            }
+                        }
+                        ObjectiveType.CUSTOM -> Text("Action spéciale : valider depuis le jeu ou événement", fontSize = 18.sp)
+                        ObjectiveType.CHECK -> Text("Cliquez sur Valider pour confirmer", fontSize = 18.sp)
+                    }
 
                     Button(
                         onClick = {
-
-
                             scope.launch {
-                                // Démarre la rotation rapide
-                                // Affiche les confettis au moment du spin
                                 showConfetti = true
+                                extraRotationY.snapTo(1080f * 2)
+                                extraRotationY.animateTo(0f, tween(4500))
 
-                                extraRotationY.snapTo(1080f * 2) // rotation initiale
-                                extraRotationY.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = tween(
-                                        durationMillis = 4500, // tu peux ajuster
-                                        easing = { fraction -> 1f - (1f - fraction).pow(4) } // quartic deceleration
-                                    )
-                                )
+                                when(b.type) {
+                                    BadgeType.UNIQUE, BadgeType.EVENT, BadgeType.SECRET -> badgeRepository.setBadgeValue(b.id, 1)
+                                    BadgeType.CUMULATIVE -> badgeRepository.incrementBadge(b.id, inputValue)
+                                    BadgeType.PROGRESSIVE -> badgeRepository.incrementBadgeProgress(b.id, inputValue)
+                                }
 
-                                homeViewModel.completeObjective(
-                                    badge.id,
-                                    countInput.toIntOrNull() ?: 0
-                                )
-                                // Masque les confettis après la fin de l’animation
+                                // Recharger le badge après update
+                                badge = badgeRepository.getBadges().firstOrNull { it.id == badgeId }
+
+                                countInput = ""
+                                yesNoChecked = false
                                 showConfetti = false
                             }
                         },
@@ -136,17 +175,19 @@ fun BadgeDetailScreen(
                     ) {
                         Text("Valider", fontSize = 20.sp)
                     }
+                } else {
+                    Text("Objectif déjà rempli ✅", fontSize = 18.sp, color = Color.Gray)
                 }
             }
-        }
 
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier
-                .size(44.dp)
-                .align(Alignment.TopEnd)
-        ) {
-            Icon(Icons.Default.Close, contentDescription = "Fermer")
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier
+                    .size(44.dp)
+                    .align(Alignment.TopEnd)
+            ) {
+                Icon(Icons.Default.Close, contentDescription = "Fermer")
+            }
         }
     }
 }

@@ -2,6 +2,8 @@ package com.tibolatte.milbadge
 
 import BadgeDetailScreen
 import android.app.Application
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,7 +26,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.tibolatte.milbadge.data.BadgeEngine
+import com.tibolatte.milbadge.data.BadgeRepositoryRoom
 import com.tibolatte.milbadge.navigation.ProfileScreen
 import com.tibolatte.milbadge.navigation.Screen
 import com.tibolatte.milbadge.navigation.SettingsScreen
@@ -32,13 +34,15 @@ import com.tibolatte.milbadge.screens.HomeScreen
 import com.tibolatte.milbadge.screens.HomeViewModel
 import com.tibolatte.milbadge.screens.HomeViewModelFactory
 
+@RequiresApi(Build.VERSION_CODES.S)
 @Composable
 fun BadgeApp() {
     val navController = rememberNavController()
     val context = LocalContext.current.applicationContext as Application
-    val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(context))
-
-    val badgeEngine = remember { BadgeEngine(homeViewModel) }
+    val badgeRepository = remember { BadgeRepositoryRoom(context) }
+    val homeViewModel: HomeViewModel = viewModel(
+        factory = HomeViewModelFactory(context, badgeRepository)
+    )
 
 
 
@@ -62,7 +66,7 @@ fun BadgeApp() {
                 val badgeId = backStackEntry.arguments?.getString("badgeId")?.toInt() ?: 0
                 BadgeDetailScreen(
                     badgeId = badgeId,
-                    homeViewModel = homeViewModel,
+                    badgeRepository = badgeRepository,
                     onClose = { navController.popBackStack() }
                 )
             }

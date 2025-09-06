@@ -12,11 +12,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color.Companion.Transparent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.tibolatte.milbadge.Badge
-import com.tibolatte.milbadge.ui.theme.GrisBadge
-import com.tibolatte.milbadge.ui.theme.RosePastel
 
 @Composable
 fun BadgeCell(
@@ -32,7 +31,7 @@ fun BadgeCell(
             .fillMaxWidth(0.2f)   // 20% de la largeur parent
             .aspectRatio(1f)       // carré parfait
             .clip(CircleShape)
-            .background(if (badge.isUnlocked) RosePastel else GrisBadge)
+            .background(if (badge.isUnlocked) Transparent else Transparent)
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { onClick() },

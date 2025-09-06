@@ -1,88 +1,93 @@
 package com.tibolatte.milbadge
-
 object BadgeRepository {
-
     val badges: List<Badge> = listOf(
         Badge(
             id = 0,
-            name = "Étoile de l’Amour",
+            name = "Déclaration d'Amour",
             rarity = Rarity.RARE,
-            isUnlocked = true,
-            unlockDate = "27/08/2025",
-            message = "Mon amour, tu brilles ✨"
+            type = BadgeType.UNIQUE,
+            isUnlocked = false,
+            unlockConditionText = "Rends fou ton amoureux avec un baiser",
+            unlockDate = null,
+            message = "Je t'aime tellement...",
+            objectiveType = ObjectiveType.CHECK
         ),
         Badge(
             id = 1,
             name = "Marcheuse assidue",
             rarity = Rarity.RARE,
+            type = BadgeType.PROGRESSIVE,
             isUnlocked = false,
             unlockConditionText = "Marcher 6000 pas par jour pendant 1 semaine",
-            message = "Et ben dis-donc, le badge originel!",
-            progress = Pair(0,6000)
+            progress = 0 to 7,               // jours consécutifs
+            totalForDay = 6000,              // objectif journalier
+            currentValue = 0,                // compteur du jour
+            objectiveType = ObjectiveType.COUNT,
+            periodUnit = PeriodUnit.DAY
+
         ),
         Badge(
             id = 2,
-            name = "Nageur courageux",
+            name = "Nageuse courageuse",
             rarity = Rarity.MEDIUM,
+            type = BadgeType.PROGRESSIVE,
             isUnlocked = false,
             unlockConditionText = "Aller à la piscine 3 jours d’affilée",
+            progress = 0 to 3,
+            totalForDay = 1,                 // 1 session par jour
+            currentValue = 0,
+            objectiveType = ObjectiveType.COUNT,
+            periodUnit = PeriodUnit.DAY
         ),
         Badge(
             id = 3,
-            name = "Petit chef",
-            rarity = Rarity.MEDIUM,
+            name = "Expédition 33",
+            rarity = Rarity.LEGENDARY,
+            type = BadgeType.UNIQUE,
             isUnlocked = false,
-            unlockConditionText = "Cuisiner 5 recettes différentes",
+            unlockConditionText = "Finir Clair Obscur: Expedition 33",
+            unlockDate = null,
+            message = "Enfin il est terminé! Pour ceux qui viendront après.",
+            objectiveType = ObjectiveType.CHECK
+
         ),
         Badge(
             id = 4,
-            name = "Marathon du sommeil",
-            rarity = Rarity.RARE,
+            name = "Avoir un petit chat",
+            rarity = Rarity.LEGENDARY,
+            type = BadgeType.UNIQUE,
             isUnlocked = false,
-            unlockConditionText = "Dormir 8 heures minimum pendant 5 nuits consécutives",
+            unlockConditionText = "Enfin récupérer un petit chat!",
+            unlockDate = null,
+            message = "Une boule de poils à câliner",
+            objectiveType = ObjectiveType.CHECK
+
         ),
         Badge(
             id = 5,
-            name = "Lecteur assidu",
-            rarity = Rarity.MEDIUM,
+            name = "Ciao ESGI!",
+            rarity = Rarity.LEGENDARY,
+            type = BadgeType.UNIQUE,
             isUnlocked = false,
-            unlockConditionText = "Lire 3 livres en un mois",
+            unlockConditionText = "Finir l'ESGI",
+            unlockDate = null,
+            message = "Félicitations mademoiselle, les études, c'est terminé!",
+            objectiveType = ObjectiveType.CHECK
+
         ),
         Badge(
             id = 6,
-            name = "Selfie social",
-            rarity = Rarity.COMMON,
+            name = "Le grand saut",
+            rarity = Rarity.LEGENDARY,
+            type = BadgeType.UNIQUE,
             isUnlocked = false,
-            unlockConditionText = "Prendre une photo avec des amis 3 fois dans la semaine",
-        ),
-        Badge(
-            id = 7,
-            name = "Créatif fou",
-            rarity = Rarity.RARE,
-            isUnlocked = false,
-            unlockConditionText = "Dessiner ou peindre 5 œuvres différentes",
-        ),
-        Badge(
-            id = 8,
-            name = "Marathon de séries",
-            rarity = Rarity.COMMON,
-            isUnlocked = false,
-            unlockConditionText = "Regarder 10 épisodes d’une série",
-        ),
-        Badge(
-            id = 9,
-            name = "Défi sportif",
-            rarity = Rarity.MEDIUM,
-            isUnlocked = false,
-            unlockConditionText = "Faire 50 squats en une seule séance",
-        ),
-        Badge(
-            id = 10,
-            name = "Voyageur urbain",
-            rarity = Rarity.COMMON,
-            isUnlocked = false,
-            unlockConditionText = "Visiter 5 lieux différents dans ta ville",
-        )
-    ) + List(19) { j -> Badge(101 + j, "Badge ${j + 12}", Rarity.COMMON, false) }
+            unlockConditionText = "Faire un saut en parachute",
+            unlockDate = null,
+            message = "Ca fait haut là quand même... plus jamais de vertige!",
+            objectiveType = ObjectiveType.CHECK
 
+        )
+    ) + List(19) { j ->
+        Badge(101 + j, "Badge ${j + 12}", Rarity.COMMON, BadgeType.UNIQUE, false)
+    }
 }

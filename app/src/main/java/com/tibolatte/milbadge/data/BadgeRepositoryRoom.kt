@@ -9,16 +9,24 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import androidx.room.Update
 import com.tibolatte.milbadge.Badge
 import com.tibolatte.milbadge.BadgeRepository
+import com.tibolatte.milbadge.ObjectiveType
+import com.tibolatte.milbadge.PeriodUnit
 import com.tibolatte.milbadge.toBadge
 import com.tibolatte.milbadge.toEntity
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-@Database(entities = [BadgeEntity::class], version = 1)
+
+
+@Database(entities = [BadgeEntity::class], version = 2)
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun badgeDao(): BadgeDao
 }
@@ -26,14 +34,21 @@ abstract class AppDatabase : RoomDatabase() {
 @Dao
 interface BadgeDao {
     @Query("SELECT * FROM badges")
-    suspend fun getAllBadges(): List<BadgeEntity>
+    fun getAllFlow(): Flow<List<BadgeEntity>>
+
+    @Query("SELECT * FROM badges")
+    suspend fun getAll(): List<BadgeEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertBadge(badge: BadgeEntity)
+    suspend fun insertAll(badges: List<BadgeEntity>)
 
     @Update
-    suspend fun updateBadge(badge: BadgeEntity)
+    suspend fun update(badge: BadgeEntity)
+
+    @Query("SELECT * FROM badges WHERE id = :id")
+    suspend fun getBadgeById(id: Int): BadgeEntity?
 }
+
 class BadgeRepositoryRoom(private val context: Context) {
 
     private val db = Room.databaseBuilder(
@@ -46,21 +61,25 @@ class BadgeRepositoryRoom(private val context: Context) {
 
     private val badgeDao = db.badgeDao()
 
-    // --- CRUD ---
-    suspend fun getBadges(): List<Badge> = badgeDao.getAllBadges().map { it.toBadge() }
+    // --- Flow réactif pour l'UI ---
+    val badgesFlow: Flow<List<Badge>> = badgeDao.getAllFlow()
+        .map { list -> list.map { it.toBadge() } }
 
-    suspend fun insertBadge(badge: Badge) {
-        badgeDao.insertBadge(badge.toEntity())
+    // --- List ponctuelle ---
+    suspend fun getAllBadges(): List<Badge> = badgeDao.getAll().map { it.toBadge() }
+    suspend fun getBadges(): List<Badge> = getAllBadges()
+
+    suspend fun insertBadges(badges: List<Badge>) {
+        badgeDao.insertAll(badges.map { it.toEntity() })
     }
 
     suspend fun updateBadge(badge: Badge) {
-        badgeDao.updateBadge(badge.toEntity())
+        badgeDao.update(badge.toEntity())
     }
 
-    // --- Incrémente un badge (pour capteurs ou pas) ---
+    // --- Méthodes de progression ---
     suspend fun incrementBadge(badgeId: Int, amount: Int = 1) {
-        val badges = getBadges().toMutableList()
-        val badge = badges.firstOrNull { it.id == badgeId } ?: return
+        val badge = getBadges().firstOrNull { it.id == badgeId } ?: return
         val current = (badge.progress?.first ?: 0) + amount
         val total = badge.progress?.second ?: 1
         badge.progress = current.coerceAtMost(total) to total
@@ -70,32 +89,81 @@ class BadgeRepositoryRoom(private val context: Context) {
             badge.unlockDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
             badge.isFirstUnlocked = false
         }
-
         updateBadge(badge)
     }
-
     suspend fun incrementBadgeProgress(badgeId: Int, amount: Int) {
         val badge = getBadges().firstOrNull { it.id == badgeId } ?: return
-        val current = badge.progress?.first ?: 0
-        val total = badge.progress?.second ?: 1
-        val newProgress = (current + amount).coerceAtMost(total)
+        val now = System.currentTimeMillis()
 
-        badge.progress = newProgress to total
+        // Calcule le début de la période courante
+        fun startOfPeriod(time: Long, unit: PeriodUnit): Long {
+            val cal = java.util.Calendar.getInstance().apply { timeInMillis = time }
+            when (unit) {
+                PeriodUnit.DAY -> {
+                    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    cal.set(java.util.Calendar.MINUTE, 0)
+                    cal.set(java.util.Calendar.SECOND, 0)
+                    cal.set(java.util.Calendar.MILLISECOND, 0)
+                }
+                PeriodUnit.WEEK -> {
+                    cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
+                    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    cal.set(java.util.Calendar.MINUTE, 0)
+                    cal.set(java.util.Calendar.SECOND, 0)
+                    cal.set(java.util.Calendar.MILLISECOND, 0)
+                }
+                PeriodUnit.MONTH -> {
+                    cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
+                    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    cal.set(java.util.Calendar.MINUTE, 0)
+                    cal.set(java.util.Calendar.SECOND, 0)
+                    cal.set(java.util.Calendar.MILLISECOND, 0)
+                }
+            }
+            return cal.timeInMillis
+        }
 
-        if (!badge.isUnlocked && newProgress >= total) {
+        val currentPeriodStart = startOfPeriod(now, badge.periodUnit)
+        val lastPeriodStart = badge.lastActionDate?.let { startOfPeriod(it, badge.periodUnit) }
+
+        if (lastPeriodStart == null || currentPeriodStart > lastPeriodStart) {
+            if (badge.currentValue < badge.totalForDay) {
+                // on a raté l'objectif => reset de la progression
+                badge.progress = 0 to (badge.progress?.second ?: 1)
+            }
+            badge.currentValue = 0
+        }
+
+        // Récupère la valeur saisie selon l’objectif
+        val valueToAdd = when (badge.objectiveType) {
+            ObjectiveType.COUNT, ObjectiveType.DURATION -> amount
+            ObjectiveType.YES_NO, ObjectiveType.CHECK, ObjectiveType.CUSTOM -> if (amount > 0) 1 else 0
+        }
+
+        // Incrémente la valeur pour la période
+        badge.currentValue = (badge.currentValue + valueToAdd).coerceAtMost(badge.totalForDay)
+
+        // Si objectif atteint pour la période, incrémente progression globale
+        if (badge.currentValue >= badge.totalForDay) {
+            val current = (badge.progress?.first ?: 0) + 1
+            val total = badge.progress?.second ?: 1
+            badge.progress = current.coerceAtMost(total) to total
+        }
+
+        badge.lastActionDate = now
+
+        // Déblocage si progression complète
+        if (!badge.isUnlocked && (badge.progress?.first ?: 0) >= (badge.progress?.second ?: 1)) {
             badge.isUnlocked = true
-            badge.unlockDate =
-                SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+            badge.unlockDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
             badge.isFirstUnlocked = false
         }
 
         updateBadge(badge)
     }
 
-    // --- Définit une valeur spécifique pour un badge ---
     suspend fun setBadgeValue(badgeId: Int, value: Int) {
-        val badges = getBadges().toMutableList()
-        val badge = badges.firstOrNull { it.id == badgeId } ?: return
+        val badge = getBadges().firstOrNull { it.id == badgeId } ?: return
         val total = badge.progress?.second ?: 1
         badge.progress = value.coerceAtMost(total) to total
 
@@ -108,10 +176,19 @@ class BadgeRepositoryRoom(private val context: Context) {
         updateBadge(badge)
     }
 
-    // --- Pré-remplissage si la table est vide ---
+    // --- Retourne la valeur de l’input selon type d’objectif ---
+    fun getInputValue(badge: Badge, countInput: String, yesNoChecked: Boolean): Int {
+        return when (badge.objectiveType) {
+            ObjectiveType.COUNT, ObjectiveType.DURATION -> countInput.toIntOrNull() ?: 0
+            ObjectiveType.YES_NO -> if (yesNoChecked) 1 else 0
+            ObjectiveType.CUSTOM -> 1
+            ObjectiveType.CHECK -> 1
+        }
+    }
+
     fun prepopulateIfEmpty() = runBlocking {
-        if (badgeDao.getAllBadges().isEmpty()) {
-            BadgeRepository.badges.forEach { insertBadge(it) }
+        if (badgeDao.getAll().isEmpty()) {
+            insertBadges(BadgeRepository.badges)
         }
     }
 }

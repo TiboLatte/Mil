@@ -112,7 +112,7 @@ fun RotatableBadge(
                     brush = Brush.radialGradient(
                         colors = listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent),
                         center = Offset(width / 2f, height / 2f),
-                        radius = (width.coerceAtLeast(height)) * 0.5f
+                        radius = (width.coerceAtLeast(height) * 0.5f).coerceAtLeast(1f)
                     ),
                     shape = CircleShape
                 )
@@ -153,7 +153,7 @@ fun RotatableBadge(
                                 Color.Transparent
                             ),
                             center = Offset(width / 2f, height / 2f),
-                            radius = width * 0.6f
+                            radius = (width * 0.6f).coerceAtLeast(1f)
                         ),
                         shape = CircleShape
                     )
@@ -174,7 +174,7 @@ fun RotatableBadge(
                             brush = Brush.radialGradient(
                                 colors = listOf(Color.White.copy(alpha = 0.05f * factor), Color.Transparent),
                                 center = Offset(width / 2f, height / 2f),
-                                radius = width * 0.4f * factor
+                                radius = (width * 0.4f * factor).coerceAtLeast(1f)
                             ),
                             shape = CircleShape
                         )

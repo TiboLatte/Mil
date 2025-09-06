@@ -19,27 +19,42 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.tibolatte.milbadge.BadgeType
 import com.tibolatte.milbadge.components.BadgeCell
 import com.tibolatte.milbadge.components.BadgePreviewAnimation
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(navController: NavHostController, viewModel: HomeViewModel) {
+    val scope = rememberCoroutineScope()
     var showUnlocked by remember { mutableStateOf<Boolean?>(null) }
     var previewBadgeId by remember { mutableStateOf<Int?>(null) }
     val badges by viewModel.badges.collectAsState()
+    LaunchedEffect(Unit) {
+        viewModel.refreshBadges() // Appelle une fonction suspend pour recharger les badges
+    }
+    // Recalcul automatique des badges progressifs au lancement
+    LaunchedEffect(Unit) {
+        scope.launch {
+            badges.filter { it.type == BadgeType.PROGRESSIVE }.forEach { badge ->
+                viewModel.recalculateBadgeProgress(badge)
+            }
+        }
+    }
     val previewBadge = previewBadgeId?.let { id -> badges.firstOrNull { it.id == id } }
-
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 
         // Header avec compteur
@@ -50,7 +65,7 @@ fun HomeScreen(navController: NavHostController, viewModel: HomeViewModel) {
         ) {
             Text("Mes badges", style = MaterialTheme.typography.headlineLarge)
             Box(
-                modifier = Modifier.background(Color.Yellow, RoundedCornerShape(12.dp)).padding(12.dp, 6.dp),
+                modifier = Modifier.background(Color.Transparent, RoundedCornerShape(12.dp)).padding(12.dp, 6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text("${badges.count { it.isUnlocked }} / ${badges.size}")
