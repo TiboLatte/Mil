@@ -30,14 +30,14 @@ object BadgeRepository {
             id = 2,
             name = "Nageuse courageuse",
             rarity = Rarity.MEDIUM,
-            type = BadgeType.PROGRESSIVE,
+            type = BadgeType.EVOLVE,
             isUnlocked = false,
-            unlockConditionText = "Aller à la piscine 3 jours d’affilée",
+            evolveThresholds = listOf(5,10,15), // paliers d’évolution
+            unlockConditionText = "Faire {X} longueurs en une seule fois",
             progress = 0 to 3,
-            totalForDay = 1,                 // 1 session par jour
+            totalForDay = 1,
             currentValue = 0,
-            objectiveType = ObjectiveType.COUNT,
-            periodUnit = PeriodUnit.DAY
+            objectiveType = ObjectiveType.CHECK,
         ),
         Badge(
             id = 3,
@@ -91,15 +91,17 @@ object BadgeRepository {
             id = 7,
             name = "Test Minute",
             rarity = Rarity.COMMON,
-            type = BadgeType.PROGRESSIVE,
+            type = BadgeType.EVOLVE,
             isUnlocked = false,
             unlockConditionText = "Atteindre 3 minutes consécutives",
             progress = 0 to 3,
             totalForDay = 1,
             currentValue = 0,
             objectiveType = ObjectiveType.CHECK,
-            periodUnit = PeriodUnit.MINUTE
+            evolveThresholds = listOf(1,2,3) // paliers d’évolution,
+
         )
+
     ) + List(19) { j ->
         Badge(101 + j, "Badge ${j + 12}", Rarity.COMMON, BadgeType.UNIQUE, false)
     }

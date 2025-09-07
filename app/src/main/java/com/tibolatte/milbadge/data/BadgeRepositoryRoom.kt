@@ -2,6 +2,7 @@ package com.tibolatte.milbadge.data
 
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Insert
@@ -159,6 +160,24 @@ class BadgeRepositoryRoom(private val context: Context) {
         }
 
         updateBadge(badge)
+    }
+
+    suspend fun incrementEvolveBadge(badgeId: Int) {
+        val badge = getBadges().firstOrNull { it.id == badgeId } ?: return
+
+        // Calcul du prochain seuil
+        val nextThreshold = badge.evolveThresholds.getOrNull(badge.evolveLevel) ?: return
+
+        val newLevel = badge.evolveLevel + 1
+        val updated = badge.copy(
+            currentValue = nextThreshold, // ⚡️ currentValue saute directement au seuil
+            evolveLevel = newLevel,
+            isUnlocked = true
+        )
+
+        Log.d("BadgeRepo", "Badge ${badge.id} evolveLevel ${badge.evolveLevel} -> $newLevel, currentValue=${updated.currentValue}, thresholds=${badge.evolveThresholds}")
+
+        updateBadge(updated)
     }
 
     suspend fun setBadgeValue(badgeId: Int, value: Int) {

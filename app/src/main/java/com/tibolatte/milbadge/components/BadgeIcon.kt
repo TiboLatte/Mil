@@ -20,9 +20,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tibolatte.milbadge.Badge
+import com.tibolatte.milbadge.BadgeType
 import com.tibolatte.milbadge.ui.theme.Dore
 import com.tibolatte.milbadge.ui.theme.GrisCadenas
-
 @Composable
 fun BadgeIcon(
     badge: Badge,
@@ -37,8 +37,15 @@ fun BadgeIcon(
             .background(Color.Transparent, CircleShape),
         contentAlignment = Alignment.Center
     ) {
+        // Pour les badges EVOLVE, on ajoute le suffixe du niveau actuel
+        val badgeName = if (badge.type == BadgeType.EVOLVE) {
+            "badge_${badge.id}_${badge.evolveLevel}" // +1 si evolveLevel commence à 0
+        } else {
+            "badge_${badge.id}"
+        }
+
         val resourceId = context.resources.getIdentifier(
-            "badge_${badge.id}",
+            badgeName,
             "drawable",
             context.packageName
         )
@@ -68,5 +75,4 @@ fun BadgeIcon(
         }
     }
 }
-
 

@@ -5,7 +5,7 @@ enum class Rarity { COMMON, MEDIUM, RARE, EPIC, LEGENDARY }
 
 enum class BadgeType {
     UNIQUE,
-    CUMULATIVE,
+    EVOLVE,
     PROGRESSIVE,
     EVENT,
     SECRET
@@ -35,13 +35,18 @@ data class Badge(
     var lastActionDate: Long? = null,          // timestamp pour badges progressifs
     var totalForDay: Int = 0,                  // objectif journalier (ex: 6000 pas)
     var currentValue: Int = 0   ,               // valeur du jour
-    val periodUnit: PeriodUnit = PeriodUnit.DAY
+    val periodUnit: PeriodUnit = PeriodUnit.DAY,
+
+    var evolveThresholds: List<Int> = emptyList(), //[10,20,30]
+    var evolveLevel: Int = 0 //TIER ACTUEL ATTEINT
 
     )
+
+
 fun BadgeEntity.toBadge(): Badge = Badge(
     id = id,
     name = name,
-    rarity = com.tibolatte.milbadge.Rarity.valueOf(rarity),
+    rarity = Rarity.valueOf(rarity),
     type = type,
     isUnlocked = isUnlocked,
     unlockDate = unlockDate,
@@ -52,8 +57,14 @@ fun BadgeEntity.toBadge(): Badge = Badge(
     lastActionDate = lastActionDate,
     totalForDay = totalForDay,
     currentValue = currentValue,
-    periodUnit = periodUnit
+    periodUnit = periodUnit,
+    evolveThresholds = evolveThresholds,
+    evolveLevel = evolveLevel
+
+
 )
+
+
 
 fun Badge.toEntity(): BadgeEntity = BadgeEntity(
     id = id,
@@ -70,5 +81,7 @@ fun Badge.toEntity(): BadgeEntity = BadgeEntity(
     lastActionDate = lastActionDate,
     totalForDay = totalForDay,
     currentValue = currentValue,
-    periodUnit = periodUnit
+    periodUnit = periodUnit,
+    evolveThresholds = evolveThresholds,
+    evolveLevel = evolveLevel
 )

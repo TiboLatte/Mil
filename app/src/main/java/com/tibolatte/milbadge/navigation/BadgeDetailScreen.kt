@@ -123,7 +123,7 @@ fun BadgeDetailScreen(
                 Text("Rareté : ${b.rarity.name}", fontSize = 15.sp, color = Color.Gray)
                 Text(b.name, fontSize = 28.sp)
 
-                if (b.totalForDay > 0) {
+                if (b.type != BadgeType.EVOLVE && b.totalForDay > 0) {
                     Text(
                         text = "Aujourd’hui : ${b.currentValue}/${b.totalForDay}",
                         style = MaterialTheme.typography.bodyMedium
@@ -136,11 +136,21 @@ fun BadgeDetailScreen(
                 }
 
 
+                //if (b.type == BadgeType.EVOLVE) {
+                  //  Text("Niveau actuel : ${b.evolveLevel}", fontSize = 20.sp, color = Color.Magenta)
+                //}
 
+                val isLastLevel = b.evolveLevel >= (b.evolveThresholds.size)
 
-                if (!b.isUnlocked) {
-                    Text(b.unlockConditionText ?: "À réaliser", fontSize = 20.sp)
+                val dynamicUnlockText = if (b.type == BadgeType.EVOLVE && !isLastLevel) {
+                    val nextThreshold = b.evolveThresholds.getOrNull(b.evolveLevel)
+                    badge.unlockConditionText?.replace("{X}", nextThreshold.toString()) ?: "À réaliser"
+                } else {
+                    "" // message disparaît si dernier level
                 }
+
+                Text(dynamicUnlockText, fontSize = 20.sp)
+
 
                 val dailyMax = when (b.objectiveType) {
                     ObjectiveType.COUNT, ObjectiveType.DURATION -> b.totalForDay
@@ -149,7 +159,10 @@ fun BadgeDetailScreen(
 
                 val reachedDailyMax = b.currentValue >= dailyMax
                 val reachedGlobalMax = (b.progress?.first ?: 0) >= (b.progress?.second ?: 1)
-                val showInputButton = !b.isUnlocked && !reachedDailyMax && !reachedGlobalMax
+                val showInputButton = when(b.type) {
+                    BadgeType.EVOLVE -> !isLastLevel
+                    else -> !b.isUnlocked && !reachedDailyMax && !reachedGlobalMax
+                }
                 val inputValue = badgeRepository.getInputValue(b, countInput, yesNoChecked)
 
                 if (showInputButton) {
@@ -181,12 +194,22 @@ fun BadgeDetailScreen(
                                 extraRotationY.snapTo(1080f * 2)
                                 extraRotationY.animateTo(0f, tween(4500))
 
+                                val inputVal = badgeRepository.getInputValue(b, countInput, yesNoChecked)
+
                                 when (b.type) {
-                                    BadgeType.UNIQUE, BadgeType.EVENT, BadgeType.SECRET -> badgeRepository.setBadgeValue(b.id, 1)
-                                    BadgeType.CUMULATIVE -> badgeRepository.incrementBadge(b.id, inputValue)
-                                    BadgeType.PROGRESSIVE -> badgeRepository.incrementBadgeProgress(b.id, inputValue)
+                                    BadgeType.EVOLVE -> {
+                                        badgeRepository.incrementEvolveBadge(b.id)
+
+                                    }
+
+                                    BadgeType.UNIQUE, BadgeType.EVENT, BadgeType.SECRET ->
+                                        badgeRepository.setBadgeValue(b.id, 1)
+
+                                    BadgeType.PROGRESSIVE ->
+                                        badgeRepository.incrementBadgeProgress(b.id, inputVal)
                                 }
 
+                                // Reset des inputs
                                 countInput = ""
                                 yesNoChecked = false
                                 showConfetti = false
@@ -196,6 +219,8 @@ fun BadgeDetailScreen(
                     ) {
                         Text("Valider", fontSize = 20.sp)
                     }
+
+
                 } else {
                     Text("Objectif déjà rempli ✅", fontSize = 18.sp, color = Color.Gray)
                 }

@@ -13,14 +13,16 @@ data class BadgeEntity(
     val rarity: String,
     val type: BadgeType,
     val isUnlocked: Boolean,
-    val unlockDate: String?,
-    val unlockConditionText: String?,
-    val message: String?,
+    val unlockDate: String? = null,
+    val unlockConditionText: String? = null,
+    val message: String? = null,
     val progressCurrent: Int,
     val progressTotal: Int,
     val objectiveType: ObjectiveType,
     val lastActionDate: Long? = null,
     val totalForDay: Int = 0,
     val currentValue: Int = 0,
-    val periodUnit: PeriodUnit
+    val periodUnit: PeriodUnit,
+    val evolveThresholds: List<Int> = emptyList(),
+    val evolveLevel: Int = 0
 )
